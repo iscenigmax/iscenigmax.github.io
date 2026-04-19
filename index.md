@@ -1,8 +1,3 @@
----
-layout: default
-title: Carlos A. Sanchez
----
-
 # Carlos A. Sanchez
 
 Technical operations leader, IT professor, and builder of practical technology solutions.
