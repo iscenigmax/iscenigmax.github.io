@@ -1,12 +1,6 @@
-remote_theme: mmistakes/minimal-mistakes
-
-plugins:
-  - jekyll-remote-theme
-  - jekyll-include-cache
-  - jekyll-seo-tag
-
 title: Carlos A. Sanchez
 description: Technical operations leader, IT professor, and builder of practical technology solutions.
+theme: jekyll-theme-minimal
 
 url: "https://iscenigmax.github.io"
 baseurl: ""
@@ -14,12 +8,14 @@ baseurl: ""
 author:
   name: Carlos A. Sanchez
 
+plugins:
+  - jekyll-remote-theme
+  - jekyll-include-cache
+  - jekyll-seo-tag
 lang: es
 
 github_username: iscenigmax
 twitter_username: iscenigmax
-
-minimal_mistakes_skin: "default"
 
 markdown: kramdown
 highlighter: rouge
