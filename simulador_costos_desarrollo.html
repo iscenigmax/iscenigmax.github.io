@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulación de costos en base a tiempos</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Chart.js Annotation Plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.1.1"></script>
+</head>
+<body class="bg-light">
+  <div class="container py-4">
+    <h1 class="mb-4">Simulación de tiempos y costos en desarrollo</h1>
+    <div class="row">
+      <div class="col-md-4">
+        <div class="card mb-4">
+          <div class="card-body">
+
+          <!-- Sugerencia de cotización (dinámico) -->
+          <div class="mt-3">
+            <div id="suggestionAlert" class="alert alert-info" role="alert" style="display:none;"></div>
+          </div>
+
+            <h5 class="card-title">Parámetros</h5>
+            <div class="mb-3">
+              <label class="form-label">Número de simulaciones</label>
+              <input id="nSim" type="number" class="form-control" value="10000" min="1">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Horas optimistas</label>
+              <input id="opt" type="number" class="form-control" value="0" step="1.0">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Horas probables</label>
+              <input id="mode" type="number" class="form-control" value="0" step="1.0">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Horas pesimistas</label>
+              <input id="pes" type="number" class="form-control" value="0" step="1.0">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Horas por semana</label>
+              <input id="hrsWeek" type="number" class="form-control" value="5" step="1.0">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Tarifa por hora (USD)</label>
+              <input id="rate" type="number" class="form-control" value="0.00" step="0.5">
+            </div>
+            <button id="runBtn" class="btn btn-primary w-100">Correr simulación</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-8">
+        <div class="mb-4">
+          <canvas id="chartHours"></canvas>
+        </div>
+        <div class="mb-4">
+          <canvas id="chartWeeks"></canvas>
+        </div>
+        <div class="mb-4">
+          <canvas id="chartCost"></canvas>
+        </div>
+      </div>
+    </div>
+    <h2 class="mt-5">Estadísticas</h2>
+    <div class="table-responsive">
+      <table class="table table-striped" id="statsTable">
+        <thead>
+          <tr>
+            <th>Medida</th>
+            <th>Horas</th>
+            <th>Semanas</th>
+            <th>Costo (USD)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Triangular distribution random
+    function randomTriangular(min, mode, max) {
+      const u = Math.random();
+      const c = (mode - min) / (max - min);
+      if (u < c) {
+        return min + Math.sqrt(u * (mode - min) * (max - min));
+      } else {
+        return max - Math.sqrt((1 - u) * (max - mode) * (max - min));
+      }
+    }
+
+    // Compute descriptive stats
+    function describe(arr) {
+      const sorted = [...arr].sort((a, b) => a - b);
+      const n = arr.length;
+      const mean = arr.reduce((s, v) => s + v, 0) / n;
+      const sd = Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / n);
+      const min = sorted[0];
+      const max = sorted[n - 1];
+      const percentile = p => {
+        const idx = (n - 1) * p / 100;
+        const lo = Math.floor(idx);
+        const hi = Math.ceil(idx);
+        return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+      };
+      return {
+        mean, sd, min, max,
+        p10: percentile(10), p25: percentile(25), p50: percentile(50), p75: percentile(75), p90: percentile(90)
+      };
+    }
+
+    // Build histogram data
+    function histogram(arr, bins=50) {
+      const min = Math.min(...arr);
+      const max = Math.max(...arr);
+      const step = (max - min) / bins;
+      const counts = Array(bins).fill(0);
+      arr.forEach(v => {
+        let idx = Math.floor((v - min) / step);
+        if (idx === bins) idx--;
+        counts[idx]++;
+      });
+      const labels = counts.map((_, i) => (min + i * step + step/2).toFixed(2));
+      return { labels, counts, min, max };
+    }
+
+    let charts = {};
+    document.getElementById('runBtn').addEventListener('click', () => {
+      // Leer parámetros
+      const nSim = +document.getElementById('nSim').value;
+      const opt = +document.getElementById('opt').value;
+      const mode = +document.getElementById('mode').value;
+      const pes = +document.getElementById('pes').value;
+      const hrsWeek = +document.getElementById('hrsWeek').value;
+      const rate = +document.getElementById('rate').value;
+      // Simulación
+      const hours = Array.from({ length: nSim }, () => randomTriangular(opt, mode, pes));
+      const weeks = hours.map(h => h / hrsWeek);
+      const costs = hours.map(h => h * rate);
+
+      // Estadísticas
+      const descH = describe(hours);
+      const descW = describe(weeks);
+      const descC = describe(costs);
+      const measures = ['mean', 'min', 'max', 'sd', 'p10', 'p25', 'p50', 'p75', 'p90'];
+      const mapLabel = { mean: 'Media', sd: 'Desv Est', min: 'Mínimo', max: 'Máximo', p10: 'P10', p25: 'P25', p50: 'Mediana', p75: 'P75', p90: 'P90' };
+
+      // Llenar tabla
+      const tbody = document.querySelector('#statsTable tbody');
+      tbody.innerHTML = '';
+      measures.forEach(key => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${mapLabel[key]}</td>
+          <td>${descH[key].toFixed(2)}</td>
+          <td>${descW[key].toFixed(2)}</td>
+          <td>${descC[key].toFixed(2)}</td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      // Actualizar sugerencia dinámica (P90)
+      const alertDiv = document.getElementById('suggestionAlert');
+      alertDiv.innerHTML = `
+        <strong>Sugerencia de cotización:</strong> basada en el <strong>90%</strong> de simulaciones (10% de riesgo):<br>
+        <ul class="mb-0">
+          <li><strong>Horas:</strong> ${descH.p90.toFixed(2)}</li>
+          <li><strong>Semanas:</strong> ${descW.p90.toFixed(2)}</li>
+          <li><strong>Costo (USD):</strong> ${descC.p90.toFixed(2)}</li>
+        </ul>
+      `;
+      alertDiv.style.display = 'block';
+
+      // Dibujar histogramas
+      [['chartHours', hours, descH, 'Horas', 'blue'],
+       ['chartWeeks', weeks, descW, 'Semanas', 'green'],
+       ['chartCost', costs, descC, 'Costo (USD)', 'purple']]
+      .forEach(([id, data, desc, label, color]) => {
+        const ctx = document.getElementById(id).getContext('2d');
+        const hist = histogram(data, 50);
+        if (charts[id]) charts[id].destroy();
+        charts[id] = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: hist.labels,
+            datasets: [{ data: hist.counts, backgroundColor: color }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+              annotation: {
+                annotations: {
+                  lineMean: { type: 'line', yMin: 0, yMax: Math.max(...hist.counts), xMin: desc.mean, xMax: desc.mean, borderColor: color, borderWidth: 2, label: { enabled: true, content: 'Media' } },
+                  lineP25: { type: 'line', yMin: 0, yMax: Math.max(...hist.counts), xMin: desc.p25, xMax: desc.p25, borderColor: 'green', borderDash: [6,6] },
+                  lineP75: { type: 'line', yMin: 0, yMax: Math.max(...hist.counts), xMin: desc.p75, xMax: desc.p75, borderColor: 'green', borderDash: [6,6] },
+                  lineP10: { type: 'line', yMin: 0, yMax: Math.max(...hist.counts), xMin: desc.p10, xMax: desc.p10, borderColor: 'red', borderDash: [4,4] },
+                  lineP90: { type: 'line', yMin: 0, yMax: Math.max(...hist.counts), xMin: desc.p90, xMax: desc.p90, borderColor: 'red', borderDash: [4,4] }
+                }
+              }
+            },
+            scales: { x: { title: { display: true, text: label } }, y: { title: { display: true, text: 'Frecuencia' } } }
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
