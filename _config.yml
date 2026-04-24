@@ -1,3 +1,24 @@
+remote_theme: mmistakes/minimal-mistakes
+
+plugins:
+  - jekyll-seo-tag
+  - jekyll-remote-theme
+  
 title: Carlos A. Sanchez
 description: Technical operations leader, IT professor, and builder of practical technology solutions.
-theme: jekyll-theme-cayman
+
+url: "https://iscenigmax.github.io"
+baseurl: ""
+
+author: Carlos A. Sanchez
+lang: es
+
+twitter_username: iscenigmax
+github_username: iscenigmax
+
+markdown: kramdown
+highlighter: rouge
+
+exclude:
+  - README.md
+  - node_modules
